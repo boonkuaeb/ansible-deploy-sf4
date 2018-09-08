@@ -139,10 +139,17 @@
         - deploy
 
     - name: Checkout Git repository
+      register: repo_code
       git:
         repo: https://github.com/boonkuaeb/sf4-reactjs.git
         dest: "{{ symfony_root_dir }}"
         force: yes
+      tags:
+        - deploy
+
+    - name: Register code_changed variable
+      set_fact:
+        code_changed: repo_code.changed
       tags:
         - deploy
 
@@ -184,14 +191,15 @@
       tags:
         - deploy
 
-
     - name: Create .Env file
+      when: code_changed
       become: true
       command: 'cp {{ symfony_root_dir }}/.env.dist {{ symfony_root_dir }}/.env'
       tags:
         - deploy
 
     - name: Set App Env
+      when: code_changed
       become: true
       lineinfile:
         dest: "{{ symfony_root_dir }}/.env"
@@ -201,6 +209,7 @@
         - deploy
 
     - name: Add database connection
+      when: code_changed
       become: true
       lineinfile:
         dest: "{{ symfony_root_dir }}/.env"
@@ -210,6 +219,7 @@
         - deploy
 
     - name: Install Composer's dependencies
+      when: code_changed
       composer:
         working_dir: "{{ symfony_root_dir }}"
         no_dev: "{{ 'yes' if ('prod' == symfony_env) else 'no' }}"
@@ -236,6 +246,7 @@
         - deploy
 
     - name: Execute migrations
+      when: code_changed
       register: db_migrations_result
       changed_when: "not db_migrations_result.stdout|search('No migrations to execute')"
       command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
@@ -250,6 +261,7 @@
         - deploy
 
     - name: Clear cache
+      when: code_changed
       command: "{{ symfony_console_path }} cache:clear --env={{ symfony_env }} {{ '--no-debug' if ('prod' == symfony_env) else '' }}"
       tags:
         - deploy
@@ -280,12 +292,14 @@
         - deploy
 
     - name: Install packages based on package.json.
+      when: code_changed
       npm:
         path: "{{ symfony_root_dir }}"
       tags:
         - deploy
 
-    - name: Build RectJS project file
+    - name: Build javascrip and css file
+      when: code_changed
       command:  npm --prefix {{ symfony_root_dir }} run build
       tags:
         - deploy
