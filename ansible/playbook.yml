@@ -2,9 +2,12 @@
 - hosts: vb
 
   vars:
+    project_id: price_info
     server_name: price-info.l
     symfony_root_dir: /var/www/project
     symfony_web_dir: "{{ symfony_root_dir }}/public"
+    symfony_var_dir: "{{ symfony_root_dir }}/var"
+    symfony_console_path: "{{ symfony_root_dir }}/bin/console"
 
   tasks:
     - ping: ~
@@ -59,7 +62,6 @@
         dest: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
         state: link
       notify: Restart Nginx
-
 
     - name: Add enabled Nginx site to /etc/hosts
       become: true
@@ -117,6 +119,8 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         recurse: yes
+      tags:
+        - deploy
 
     - name: Checkout Git repository
       git:
@@ -124,23 +128,83 @@
         dest: "{{ symfony_root_dir }}"
         force: yes
 
+    - name: Checkout Git repository
+      git:
+        repo: https://github.com/boonkuaeb/sf4-reactjs.git
+        dest: "{{ symfony_root_dir }}"
+        force: yes
+      tags:
+        - deploy
+
     - name: Download Composer
       script: scripts/install_composer.sh
+      tags:
+        - deploy
 
     - name: Move Composer globally
       become: true
       command: mv composer.phar /usr/local/bin/composer
+      tags:
+        - deploy
 
     - name: Set permissions on Composer
       become: true
       file:
         path: /usr/local/bin/composer
         mode: "a+x"
+      tags:
+        - deploy
 
     - name: Install Composer's dependencies
       composer:
         working_dir: "{{ symfony_root_dir }}"
         no_dev: no
+      tags:
+        - deploy
+
+    - name: Create .Env file
+      become: true
+      command: 'cp {{ symfony_root_dir }}/.env.dist {{ symfony_root_dir }}/.env'
+      tags:
+        - deploy
+
+    - name: Add database connection
+      become: true
+      lineinfile:
+        dest: "{{ symfony_root_dir }}/.env"
+        regexp: "DATABASE_URL=mysql://db_user:db_password@127.0.0.1:3306/db_name"
+        line: "DATABASE_URL=mysql://root@127.0.0.1:3306/{{ project_id }}_db"
+      tags:
+        - deploy
+
+    - name: Fix var directory permissions
+      file:
+        path: "{{ symfony_var_dir }}"
+        state: directory
+        mode: 0777
+        recurse: yes
+      tags:
+        - permissions
+        - deploy
+
+    # Symfony console commands
+    - name: Create DB if not exists
+      command: '{{ symfony_console_path }} doctrine:database:create --if-not-exists'
+      tags:
+        - deploy
+
+    - name: Execute migrations
+      command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
+      tags:
+        - deploy
+
+    - name: Load data fixtures
+      command: '{{ symfony_console_path }} doctrine:fixtures:load --no-interaction'
+      tags:
+        - deploy
+
+
+
 
     - name: Add Node repository
       become: true
@@ -151,6 +215,17 @@
       apt:
         name: nodejs
         state: latest
+
+    - name: Install packages based on package.json.
+      npm:
+        path: "{{ symfony_root_dir }}"
+      tags:
+        - deploy
+        
+    - name: Build RectJS project file
+      command:  npm --prefix {{ symfony_root_dir }} run build
+      tags:
+        - deploy
 
   handlers:
     - name: Restart Nginx
