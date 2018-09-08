@@ -146,14 +146,33 @@
       tags:
         - deploy
 
+    - name: Check for Composer
+      stat:
+        path: /usr/local/bin/composer
+      register: composer_stat
+      tags:
+        - deploy
+
     - name: Download Composer
+      when: not composer_stat.stat.exists
       script: scripts/install_composer.sh
       tags:
         - deploy
 
     - name: Move Composer globally
+      when: not composer_stat.stat.exists
       become: true
       command: mv composer.phar /usr/local/bin/composer
+      tags:
+        - deploy
+
+    - name: Make sure composer is at its latest version
+      composer:
+        working_dir: "{{ symfony_root_dir }}"
+        command: self-update
+      register: composer_self_update
+      when: not composer_stat.stat.exists
+      changed_when: "not composer_self_update.stdout|search('You are already using composer version')"
       tags:
         - deploy
 
@@ -236,15 +255,29 @@
         - deploy
       changed_when: false
 
+
+    - name: Check for Node
+      stat:
+        path: /usr/bin/node
+      register: node_stat
+      tags:
+        - deploy
+
     - name: Add Node repository
+      when: not node_stat.stat.exists
       become: true
       script: scripts/install_node_repo.sh
+      tags:
+        - deploy
 
     - name: Install Node
+      when: not node_stat.stat.exists
       become: true
       apt:
         name: nodejs
         state: latest
+      tags:
+        - deploy
 
     - name: Install packages based on package.json.
       npm:
