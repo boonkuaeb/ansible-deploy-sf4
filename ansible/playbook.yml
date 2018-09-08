@@ -9,6 +9,22 @@
     symfony_var_dir: "{{ symfony_root_dir }}/var"
     symfony_console_path: "{{ symfony_root_dir }}/bin/console"
 
+  vars_prompt:
+    - name: symfony_env
+      prompt: "Enter the environment for your Symfony app (prod|dev|test)"
+      default: prod
+      private: no
+
+  environment:
+    SYMFONY_ENV: "{{ symfony_env|lower }}"
+
+  pre_tasks:
+    - name: Convert entered Symfony environment to lowercase
+      set_fact:
+        symfony_env: "{{ symfony_env|lower }}"
+      tags:
+        - always
+
   tasks:
     - ping: ~
 
@@ -127,12 +143,6 @@
         repo: https://github.com/boonkuaeb/sf4-reactjs.git
         dest: "{{ symfony_root_dir }}"
         force: yes
-
-    - name: Checkout Git repository
-      git:
-        repo: https://github.com/boonkuaeb/sf4-reactjs.git
-        dest: "{{ symfony_root_dir }}"
-        force: yes
       tags:
         - deploy
 
@@ -155,16 +165,19 @@
       tags:
         - deploy
 
-    - name: Install Composer's dependencies
-      composer:
-        working_dir: "{{ symfony_root_dir }}"
-        no_dev: no
-      tags:
-        - deploy
 
     - name: Create .Env file
       become: true
       command: 'cp {{ symfony_root_dir }}/.env.dist {{ symfony_root_dir }}/.env'
+      tags:
+        - deploy
+
+    - name: Set App Env
+      become: true
+      lineinfile:
+        dest: "{{ symfony_root_dir }}/.env"
+        regexp: "APP_ENV=dev"
+        line: "APP_ENV={{ 'prod' if ('prod' == symfony_env) else 'dev' }}"
       tags:
         - deploy
 
@@ -174,6 +187,13 @@
         dest: "{{ symfony_root_dir }}/.env"
         regexp: "DATABASE_URL=mysql://db_user:db_password@127.0.0.1:3306/db_name"
         line: "DATABASE_URL=mysql://root@127.0.0.1:3306/{{ project_id }}_db"
+      tags:
+        - deploy
+
+    - name: Install Composer's dependencies
+      composer:
+        working_dir: "{{ symfony_root_dir }}"
+        no_dev: "{{ 'yes' if ('prod' == symfony_env) else 'no' }}"
       tags:
         - deploy
 
@@ -205,12 +225,16 @@
 
     - name: Load data fixtures
       changed_when: false
+      when: symfony_env != "prod"
       command: '{{ symfony_console_path }} doctrine:fixtures:load --no-interaction'
       tags:
         - deploy
 
-
-
+    - name: Clear cache
+      command: "{{ symfony_console_path }} cache:clear --env={{ symfony_env }} {{ '--no-debug' if ('prod' == symfony_env) else '' }}"
+      tags:
+        - deploy
+      changed_when: false
 
     - name: Add Node repository
       become: true
