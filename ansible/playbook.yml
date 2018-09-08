@@ -183,22 +183,28 @@
         state: directory
         mode: 0777
         recurse: yes
+      changed_when: false
       tags:
         - permissions
         - deploy
 
     # Symfony console commands
     - name: Create DB if not exists
+      register: db_create_result
+      changed_when: "not db_create_result.stdout|search('already exists. Skipped')"
       command: '{{ symfony_console_path }} doctrine:database:create --if-not-exists'
       tags:
         - deploy
 
     - name: Execute migrations
+      register: db_migrations_result
+      changed_when: "not db_migrations_result.stdout|search('No migrations to execute')"
       command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
       tags:
         - deploy
 
     - name: Load data fixtures
+      changed_when: false
       command: '{{ symfony_console_path }} doctrine:fixtures:load --no-interaction'
       tags:
         - deploy
@@ -221,7 +227,7 @@
         path: "{{ symfony_root_dir }}"
       tags:
         - deploy
-        
+
     - name: Build RectJS project file
       command:  npm --prefix {{ symfony_root_dir }} run build
       tags:
