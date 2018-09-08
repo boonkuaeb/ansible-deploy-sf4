@@ -1,0 +1,80 @@
+---
+
+- name: Create .Env file
+  become: true
+  command: 'cp {{ symfony_root_dir }}/.env.dist {{ symfony_root_dir }}/.env'
+  tags:
+    - deploy
+
+- name: Set App Env
+  become: true
+  lineinfile:
+    dest: "{{ symfony_root_dir }}/.env"
+    regexp: "APP_ENV=dev"
+    line: "APP_ENV={{ 'prod' if ('prod' == symfony_env) else 'dev' }}"
+  tags:
+    - deploy
+
+- name: Add database connection
+  become: true
+  lineinfile:
+    dest: "{{ symfony_root_dir }}/.env"
+    regexp: "DATABASE_URL=mysql://db_user:db_password@127.0.0.1:3306/db_name"
+    line: "DATABASE_URL=mysql://root@127.0.0.1:3306/{{ project_id }}_db"
+  tags:
+    - deploy
+
+- name: Install Composer's dependencies
+  composer:
+    working_dir: "{{ symfony_root_dir }}"
+    no_dev: "{{ 'yes' if ('prod' == symfony_env) else 'no' }}"
+  tags:
+    - deploy
+
+- name: Fix var directory permissions
+  file:
+    path: "{{ symfony_var_dir }}"
+    state: directory
+    mode: 0777
+    recurse: yes
+  changed_when: false
+  tags:
+    - permissions
+    - deploy
+
+# Symfony console commands
+- name: Create DB if not exists
+  register: db_create_result
+  changed_when: "not db_create_result.stdout|search('already exists. Skipped')"
+  command: '{{ symfony_console_path }} doctrine:database:create --if-not-exists'
+  tags:
+    - deploy
+
+- name: Execute migrations
+  when: code_changed
+  register: db_migrations_result
+  changed_when: "not db_migrations_result.stdout|search('No migrations to execute')"
+  command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
+  tags:
+    - deploy
+
+- name: Load data fixtures
+  changed_when: false
+  when: symfony_env != "prod"
+  command: '{{ symfony_console_path }} doctrine:fixtures:load --no-interaction'
+  tags:
+    - deploy
+
+- name: Build javascrip and css file
+  when: code_changed
+  command:  npm --prefix {{ symfony_root_dir }} run build
+  tags:
+    - deploy
+
+- name: Clear cache
+  command: "{{ symfony_console_path }} cache:clear --env={{ symfony_env }} {{ '--no-debug' if ('prod' == symfony_env) else '' }}"
+  tags:
+    - deploy
+  changed_when: false
+
+

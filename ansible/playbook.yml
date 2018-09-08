@@ -3,7 +3,6 @@
 
   vars:
     project_id: price_info
-    server_name: price-info.l
     symfony_root_dir: /var/www/project
     symfony_web_dir: "{{ symfony_root_dir }}/public"
     symfony_var_dir: "{{ symfony_root_dir }}/var"
@@ -24,10 +23,6 @@
         symfony_env: "{{ symfony_env|lower }}"
       tags:
         - always
-
-  tasks:
-    - ping: ~
-
     - name: Update APT package manager repositories cache
       become: true
       apt:
@@ -37,6 +32,12 @@
       become: true
       apt:
         upgrade: safe
+
+  roles:
+    - nginx
+
+  tasks:
+    - ping: ~
 
     - name: Install cowsay - it's probably important
       become: true
@@ -56,36 +57,6 @@
       apt:
         name: git
         state: latest
-
-    - name: Install Nginx web server
-      become: true
-      apt:
-        name: nginx
-        state: latest
-      notify: Restart Nginx
-
-    - name: Add Symfony config template to the Nginx available sites
-      become: true
-      template:
-        src: templates/symfony.conf
-        dest: "/etc/nginx/sites-available/{{ server_name }}.conf"
-      notify: Restart Nginx
-
-    - name: Enable Symfony config template from Nginx available sites
-      become: true
-      file:
-        src: "/etc/nginx/sites-available/{{ server_name }}.conf"
-        dest: "/etc/nginx/sites-enabled/{{ server_name }}.conf"
-        state: link
-      notify: Restart Nginx
-
-    - name: Add enabled Nginx site to /etc/hosts
-      become: true
-      lineinfile:
-        dest: /etc/hosts
-        regexp: "{{ server_name }}"
-        line: "127.0.0.1 {{ server_name }}"
-      notify: Restart Nginx
 
     - name: Install MySQL DB server
       become: true
@@ -191,83 +162,6 @@
       tags:
         - deploy
 
-    - name: Create .Env file
-      when: code_changed
-      become: true
-      command: 'cp {{ symfony_root_dir }}/.env.dist {{ symfony_root_dir }}/.env'
-      tags:
-        - deploy
-
-    - name: Set App Env
-      when: code_changed
-      become: true
-      lineinfile:
-        dest: "{{ symfony_root_dir }}/.env"
-        regexp: "APP_ENV=dev"
-        line: "APP_ENV={{ 'prod' if ('prod' == symfony_env) else 'dev' }}"
-      tags:
-        - deploy
-
-    - name: Add database connection
-      when: code_changed
-      become: true
-      lineinfile:
-        dest: "{{ symfony_root_dir }}/.env"
-        regexp: "DATABASE_URL=mysql://db_user:db_password@127.0.0.1:3306/db_name"
-        line: "DATABASE_URL=mysql://root@127.0.0.1:3306/{{ project_id }}_db"
-      tags:
-        - deploy
-
-    - name: Install Composer's dependencies
-      when: code_changed
-      composer:
-        working_dir: "{{ symfony_root_dir }}"
-        no_dev: "{{ 'yes' if ('prod' == symfony_env) else 'no' }}"
-      tags:
-        - deploy
-
-    - name: Fix var directory permissions
-      file:
-        path: "{{ symfony_var_dir }}"
-        state: directory
-        mode: 0777
-        recurse: yes
-      changed_when: false
-      tags:
-        - permissions
-        - deploy
-
-    # Symfony console commands
-    - name: Create DB if not exists
-      register: db_create_result
-      changed_when: "not db_create_result.stdout|search('already exists. Skipped')"
-      command: '{{ symfony_console_path }} doctrine:database:create --if-not-exists'
-      tags:
-        - deploy
-
-    - name: Execute migrations
-      when: code_changed
-      register: db_migrations_result
-      changed_when: "not db_migrations_result.stdout|search('No migrations to execute')"
-      command: '{{ symfony_console_path }} doctrine:migrations:migrate --no-interaction'
-      tags:
-        - deploy
-
-    - name: Load data fixtures
-      changed_when: false
-      when: symfony_env != "prod"
-      command: '{{ symfony_console_path }} doctrine:fixtures:load --no-interaction'
-      tags:
-        - deploy
-
-    - name: Clear cache
-      when: code_changed
-      command: "{{ symfony_console_path }} cache:clear --env={{ symfony_env }} {{ '--no-debug' if ('prod' == symfony_env) else '' }}"
-      tags:
-        - deploy
-      changed_when: false
-
-
     - name: Check for Node
       stat:
         path: /usr/bin/node
@@ -298,19 +192,9 @@
       tags:
         - deploy
 
-    - name: Build javascrip and css file
-      when: code_changed
-      command:  npm --prefix {{ symfony_root_dir }} run build
-      tags:
-        - deploy
+    - include: ./includes/symfony-bootstrap.yml
 
   handlers:
-    - name: Restart Nginx
-      become: true
-      service:
-        name: nginx
-        state: restarted
-
     - name: Restart PHP-FPM
       become: true
       service:
