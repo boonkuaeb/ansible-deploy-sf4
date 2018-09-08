@@ -4,7 +4,7 @@ dist/*
 .idea/
 .vagrant/
 ubuntu-xenial-16.04-cloudimg-console*
-
+ansible/playbook.retry
 
 ###> symfony/framework-bundle ###
 /.env
