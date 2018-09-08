@@ -20,7 +20,7 @@
   lineinfile:
     dest: "{{ symfony_root_dir }}/.env"
     regexp: "DATABASE_URL=mysql://db_user:db_password@127.0.0.1:3306/db_name"
-    line: "DATABASE_URL=mysql://root@127.0.0.1:3306/{{ project_id }}_db"
+    line: "{{ symfony_database_url }}"
   tags:
     - deploy
 

@@ -1,8 +1,7 @@
 ---
-
-vars:
-  project_id: price_info
-  symfony_root_dir: /var/www/project
-  symfony_web_dir: "{{ symfony_root_dir }}/public"
-  symfony_var_dir: "{{ symfony_root_dir }}/var"
-  symfony_console_path: "{{ symfony_root_dir }}/bin/console"
+project_id: price_info
+symfony_root_dir: /var/www/project
+symfony_web_dir: "{{ symfony_root_dir }}/public"
+symfony_var_dir: "{{ symfony_root_dir }}/var"
+symfony_console_path: "{{ symfony_root_dir }}/bin/console"
+symfony_database_url: "{{ vault_symfony_database_url }}"
