@@ -7,6 +7,28 @@
     state: latest
   notify: Restart Nginx
 
+- name: Check Nginx default from available
+  stat:
+    path: /etc/nginx/sites-available/default
+  register: nginx_avliable_stat
+
+- name: Remove Nginx default from available
+  when: nginx_avliable_stat.stat.exists
+  become: true
+  command: rm /etc/nginx/sites-available/default
+  notify: Restart Nginx
+
+- name: Check Nginx is enalbled default-site
+  stat:
+    path: /etc/nginx/sites-enabled/default
+  register: nginx_enabled_stat
+
+- name: Remove Nginx enalbled default-site
+  when: nginx_enabled_stat.stat.exists
+  become: true
+  command: rm /etc/nginx/sites-enabled/default
+  notify: Restart Nginx
+
 - name: Add Symfony config template to the Nginx available sites
   become: true
   template:
