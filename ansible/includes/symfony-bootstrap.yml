@@ -65,8 +65,19 @@
   tags:
     - deploy
 
+
+
+- name: Set Production Mode for Build javascript
+  become: true
+  when: symfony_env == "prod"
+  lineinfile:
+    dest: "{{ symfony_root_dir }}/webpack.config.js"
+    regexp: ".configureRuntimeEnvironment('dev')"
+    line: ".configureRuntimeEnvironment('production')"
+  tags:
+    - deploy
+
 - name: Build javascrip and css file
-  when: code_changed
   command:  npm --prefix {{ symfony_root_dir }} run build
   tags:
     - deploy

@@ -1,5 +1,5 @@
 ---
-- hosts: webserver
+- hosts: vb
 
   vars_files:
     - ./vars/vault.yml
