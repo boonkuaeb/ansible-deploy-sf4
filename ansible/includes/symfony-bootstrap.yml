@@ -66,14 +66,13 @@
     - deploy
 
 
-
 - name: Set Production Mode for Build javascript
   become: true
   when: symfony_env == "prod"
-  lineinfile:
-    dest: "{{ symfony_root_dir }}/webpack.config.js"
-    regexp: ".configureRuntimeEnvironment('dev')"
-    line: ".configureRuntimeEnvironment('production')"
+  replace:
+    path: "{{ symfony_root_dir }}/webpack.config.js"
+    regexp: "{{ webpack_env_find }}"
+    replace: "{{ webpack_env_replace }}"
   tags:
     - deploy
 

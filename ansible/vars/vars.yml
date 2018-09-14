@@ -5,3 +5,16 @@ symfony_web_dir: "{{ symfony_root_dir }}/public"
 symfony_var_dir: "{{ symfony_root_dir }}/var"
 symfony_console_path: "{{ symfony_root_dir }}/bin/console"
 symfony_database_url: "{{ vault_symfony_database_url }}"
+
+webpack_env_find: '([^ ]*)\.configureRuntimeEnvironment\(\"dev\"\)([^ \.]*)'
+webpack_env_replace: '.configureRuntimeEnvironment("production")'
+
+#  - replace:
+#      path: /etc/hosts
+#      regexp: '(\s+)old\.host\.name(\s+.*)?$'
+#      replace: '\1new.host.name\2'
+#      backup: yes
+
+
+#webpack_env_find: .configureRuntimeEnvironment('dev')
+#webpack_env_replace: .configureRuntimeEnvironment('production')
